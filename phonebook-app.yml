@@ -1,44 +1,76 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
-  CloudFormation Template for Phonebook Application. This template creates Application Load Balancer 
+  CloudFormation Template for Phonebook Application. This template creates Application Load Balancer
   with Auto Scaling Group of Amazon Linux 2023  EC2 Instances which host Python Flask Web Application.
   EC2 instances are placed within WebServerSecurityGroup which allows http (80) connections only from ALBSecurityGroup,
-  and allows tcp(3306) connections only within itself. RDS DB instance is placed within WebServerSecurityGroup 
-  so that Database Server can communicate with Web Servers. Application Load Balancer is placed within ALBSecurityGroup 
-  which allows http (80) and SSH (22)connections from anywhere. WebServerASG Auto Scaling Group is using the LT 
-  Launch Template in order to spin up instances needed. LT Launch Template is configured to prepare Python Flask 
-  environment on EC2, and to deploy Phonebook Application on Flask Server after downloading the app code 
+  and allows tcp(3306) connections only within itself. RDS DB instance is placed within WebServerSecurityGroup
+  so that Database Server can communicate with Web Servers. Application Load Balancer is placed within ALBSecurityGroup
+  which allows http (80) and SSH (22)connections from anywhere. WebServerASG Auto Scaling Group is using the LT
+  Launch Template in order to spin up instances needed. LT Launch Template is configured to prepare Python Flask
+  environment on EC2, and to deploy Phonebook Application on Flask Server after downloading the app code
   from Github repository.
+
 Parameters:
+  VPCParameter:
+    Description: Select your VPC
+    Type: AWS::EC2::VPC::Id
  
-  
+  DBUsernameParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /aozdemirdc/phonebook-web-app/username
+
 Resources:
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t3.micro
+      DBInstanceIdentifier: phonebook-app
+      DBName: clarusway_phonebook
+      DBSecurityGroups: 
+        - !Ref DBSecurityGroup
+      Engine: MySQL
+      EngineVersion: 8.0.35
+      MasterUserPassword: '{{resolve:ssm-secure:/aozdemirdc/phonebook-web-app/password:1}}'
+      MasterUsername: !Ref DBUsernameParameter
+      Port: 3306
+      PubliclyAccessible: true
+    DeletionPolicy: Delete
 
-  autoScalingGroup:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP for Application Loadbalancer # Required
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      VpcId: !Ref VPCParameter
 
-  applicationLoadBalancerListener:
-    
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP and SSH for Web Server # Required
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !GetAtt ALBSecurityGroup.GroupId
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+      VpcId: !Ref VPCParameter
 
-  applicationLoadBalancer:
-    
+  DBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      DBSecurityGroupIngress: # Required
+        - EC2SecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
+      GroupDescription: Only allows from ec2 sec grp # Required
 
-  launchTemplate:
-   
-
-
-  targetGroup:
-    
-
-  dBInstance:
-    
-
-  wBSecurityGroup:
-   
-
-  webServerSecurityGroup:
-    
-
-  applicationLoadBalancerSecurityGroup:
-    
-Outputs:
-  
+Outputs: 
